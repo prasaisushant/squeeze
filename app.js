@@ -206,6 +206,142 @@ function updateStats() {
 //   img.src = s.origUrl;
 // }
 
+// function compress(card) {
+//   const s = card.__s;
+//   const maxW = parseInt(card.querySelector('.resize-slider').value);
+//   const fmt = card.querySelector('.fmt-pill.active').dataset.fmt;
+
+//   const pb = card.querySelector('.prog-fill');
+//   const pbWrap = card.querySelector('.prog-bar');
+//   const overlay = card.querySelector('.comp-overlay');
+//   pbWrap.style.display = 'block';
+//   overlay.style.display = 'flex';
+//   pb.style.width = '20%';
+
+//   const img = new Image();
+//   img.onload = () => {
+//     pb.style.width = '40%';
+//     let w = img.width, h = img.height;
+//     if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+    
+//     const cv = document.createElement('canvas');
+//     cv.width = w; cv.height = h;
+//     const ctx = cv.getContext('2d');
+//     ctx.drawImage(img, 0, 0, w, h);
+//     pb.style.width = '60%';
+
+//     // Read the user's initial target quality from the slider
+//     const initialQuality = parseInt(card.querySelector('.quality-slider').value);
+
+//     // This internal function will run repeatedly if the file size increases
+//     function runCompressionLoop(currentQuality) {
+//       if (fmt === 'png') {
+//         try {
+//           const imgData = ctx.getImageData(0, 0, w, h);
+//           // Map 1-100 quality scale to UPNG max color depth palette (2 to 256)
+//           const colorsCount = Math.max(2, Math.round((currentQuality / 100) * 254) + 2);
+//           const rgbaBuffer = imgData.data.buffer;
+//           const encodedPng = UPNG.encode([rgbaBuffer], w, h, colorsCount);
+//           const blob = new Blob([encodedPng], { type: 'image/png' });
+          
+//           evaluateResult(blob, currentQuality);
+//         } catch (err) {
+//           console.error("UPNG fallback error:", err);
+//           cv.toBlob(blob => evaluateResult(blob, currentQuality), 'image/png');
+//         }
+//       } else {
+//         const mime = fmt === 'webp' ? 'image/webp' : 'image/jpeg';
+//         cv.toBlob(blob => evaluateResult(blob, currentQuality), mime, currentQuality / 100);
+//       }
+//     }
+
+//     function evaluateResult(blob, currentQuality) {
+//       // Calculate how much size changed. Positive means saved space, negative means bloated.
+//       const savingsPct = s.origSize > 0 ? ((s.origSize - blob.size) / s.origSize) * 100 : 0;
+
+//       // CRITERIA: If size increased or savings are less than 10%, AND we haven't completely destroyed quality yet
+//       if (savingsPct < 10 && currentQuality > 15) {
+//         // Drop quality by 10% steps automatically to hunt for a smaller file size
+//         runCompressionLoop(currentQuality - 10);
+//         return;
+//       }
+
+//       // If we dropped quality all the way to 15% and it STILL couldn't save 10% space,
+//       // fetch the original uncompressed file instead to avoid giving the user a worse, heavier image.
+//       if (savingsPct < 0 && currentQuality <= 15) {
+//         fetch(s.origUrl)
+//           .then(res => res.blob())
+//           .then(origBlob => {
+//             // Force output format tag to match whatever original file was
+//             const origFmt = s.origName.split('.').pop().toLowerCase();
+//             s.fmt = ['jpeg','jpg','png','webp'].includes(origFmt) ? (origFmt === 'jpg' ? 'jpeg' : origFmt) : fmt;
+//             finalizeUI(origBlob, img.width, img.height, initialQuality);
+//           });
+//         return;
+//       }
+
+//       // If it passes the test, finalize with the optimized blob
+//       finalizeUI(blob, w, h, currentQuality);
+//     }
+
+//     function finalizeUI(blob, finalW, finalH, visualQualitySetting) {
+//       pb.style.width = '100%';
+//       setTimeout(() => { pbWrap.style.display = 'none'; pb.style.width = '0%'; }, 350);
+//       overlay.style.display = 'none';
+
+//       // Dynamically update the slider position and text wrapper so the user sees what quality was actually used
+//       card.querySelector('.quality-slider').value = visualQualitySetting;
+//       card.querySelector('.quality-val').textContent = visualQualitySetting + '%';
+
+//       if (s.compUrl) URL.revokeObjectURL(s.compUrl);
+//       s.compUrl = URL.createObjectURL(blob);
+//       s.compBlob = blob;
+
+//       card.querySelector('.comp-img').src = s.compUrl;
+//       card.querySelector('.comp-size-val').textContent = fmtSize(blob.size);
+//       card.querySelector('.comp-dim').textContent = finalW + ' × ' + finalH;
+
+//       const pct = s.origSize > 0 ? Math.round((1 - blob.size / s.origSize) * 100) : 0;
+//       const fill = card.querySelector('.savings-fill');
+//       const label = card.querySelector('.savings-label');
+//       const absPct = Math.abs(pct);
+//       const trackPct = Math.min(absPct, 100);
+
+//       if (pct >= 10) {
+//         fill.className = 'savings-fill';
+//         label.className = 'savings-label';
+//         label.textContent = '-' + pct + '%';
+//         fill.style.width = trackPct + '%';
+//       } else if (pct >= 0) {
+//         fill.className = 'savings-fill warn';
+//         label.className = 'savings-label warn';
+//         label.textContent = '-' + pct + '%';
+//         fill.style.width = Math.max(trackPct, 2) + '%';
+//       } else {
+//         fill.className = 'savings-fill bad';
+//         label.className = 'savings-label bad';
+//         label.textContent = '+' + absPct + '%';
+//         fill.style.width = Math.min(trackPct, 100) + '%';
+//       }
+
+//       const dl = card.querySelector('.btn-dl');
+//       dl.disabled = false;
+//       dl.onclick = () => {
+//         const a = document.createElement('a');
+//         a.download = s.origName.replace(/\.[^.]+$/, '') + '-compressed.' + s.fmt;
+//         a.href = s.compUrl;
+//         a.click();
+//       };
+
+//       updateStats();
+//     }
+
+//     // Start the recursive compression process at the current slider value
+//     runCompressionLoop(initialQuality);
+//   };
+//   img.src = s.origUrl;
+// }
+
 function compress(card) {
   const s = card.__s;
   const maxW = parseInt(card.querySelector('.resize-slider').value);
@@ -230,15 +366,13 @@ function compress(card) {
     ctx.drawImage(img, 0, 0, w, h);
     pb.style.width = '60%';
 
-    // Read the user's initial target quality from the slider
-    const initialQuality = parseInt(card.querySelector('.quality-slider').value);
+    // Read what the slider is currently set to
+    const targetQuality = parseInt(card.querySelector('.quality-slider').value);
 
-    // This internal function will run repeatedly if the file size increases
     function runCompressionLoop(currentQuality) {
       if (fmt === 'png') {
         try {
           const imgData = ctx.getImageData(0, 0, w, h);
-          // Map 1-100 quality scale to UPNG max color depth palette (2 to 256)
           const colorsCount = Math.max(2, Math.round((currentQuality / 100) * 254) + 2);
           const rgbaBuffer = imgData.data.buffer;
           const encodedPng = UPNG.encode([rgbaBuffer], w, h, colorsCount);
@@ -256,31 +390,29 @@ function compress(card) {
     }
 
     function evaluateResult(blob, currentQuality) {
-      // Calculate how much size changed. Positive means saved space, negative means bloated.
       const savingsPct = s.origSize > 0 ? ((s.origSize - blob.size) / s.origSize) * 100 : 0;
 
-      // CRITERIA: If size increased or savings are less than 10%, AND we haven't completely destroyed quality yet
-      if (savingsPct < 10 && currentQuality > 15) {
-        // Drop quality by 10% steps automatically to hunt for a smaller file size
+      // CRITERIA: ONLY run the reduction loop if it's the initial auto-upload sequence
+      if (s.isInitialUpload && savingsPct < 10 && currentQuality > 15) {
         runCompressionLoop(currentQuality - 10);
         return;
       }
 
-      // If we dropped quality all the way to 15% and it STILL couldn't save 10% space,
-      // fetch the original uncompressed file instead to avoid giving the user a worse, heavier image.
-      if (savingsPct < 0 && currentQuality <= 15) {
+      // If it's the initial load, and even at 15% it can't save space, fall back to the original file
+      if (s.isInitialUpload && savingsPct < 0 && currentQuality <= 15) {
         fetch(s.origUrl)
           .then(res => res.blob())
           .then(origBlob => {
-            // Force output format tag to match whatever original file was
             const origFmt = s.origName.split('.').pop().toLowerCase();
             s.fmt = ['jpeg','jpg','png','webp'].includes(origFmt) ? (origFmt === 'jpg' ? 'jpeg' : origFmt) : fmt;
-            finalizeUI(origBlob, img.width, img.height, initialQuality);
+            s.isInitialUpload = false; // Turn off initial flag
+            finalizeUI(origBlob, img.width, img.height, targetQuality);
           });
         return;
       }
 
-      // If it passes the test, finalize with the optimized blob
+      // If we reach here, either the auto-optimizer succeeded OR the user is interacting manually.
+      s.isInitialUpload = false; // Turn off initial flag so future adjustments are direct
       finalizeUI(blob, w, h, currentQuality);
     }
 
@@ -289,7 +421,7 @@ function compress(card) {
       setTimeout(() => { pbWrap.style.display = 'none'; pb.style.width = '0%'; }, 350);
       overlay.style.display = 'none';
 
-      // Dynamically update the slider position and text wrapper so the user sees what quality was actually used
+      // Reflect the final evaluated quality visually on the card elements
       card.querySelector('.quality-slider').value = visualQualitySetting;
       card.querySelector('.quality-val').textContent = visualQualitySetting + '%';
 
@@ -336,8 +468,8 @@ function compress(card) {
       updateStats();
     }
 
-    // Start the recursive compression process at the current slider value
-    runCompressionLoop(initialQuality);
+    // Start processing at whatever value the slider is currently sitting at
+    runCompressionLoop(targetQuality);
   };
   img.src = s.origUrl;
 }
@@ -358,7 +490,8 @@ function addFile(file) {
     origUrl: URL.createObjectURL(file),
     compUrl: null, 
     compBlob: null, 
-    fmt: detectedFmt // Uses the uploaded file's format instead of forcing jpeg
+    fmt: detectedFmt, // Uses the uploaded file's format instead of forcing jpeg
+    isInitialUpload: true
   };
 
   // Update the UI pills so the correct format button is lit up active
