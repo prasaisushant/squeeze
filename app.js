@@ -25,6 +25,81 @@ function updateStats() {
   document.getElementById('statSize').textContent = fmtSize(Math.abs(saved));
 }
 
+// function compress(card) {
+//   const s = card.__s;
+//   const quality = parseInt(card.querySelector('.quality-slider').value) / 100;
+//   const maxW = parseInt(card.querySelector('.resize-slider').value);
+//   const fmt = card.querySelector('.fmt-pill.active').dataset.fmt;
+
+//   const pb = card.querySelector('.prog-fill');
+//   const pbWrap = card.querySelector('.prog-bar');
+//   const overlay = card.querySelector('.comp-overlay');
+//   pbWrap.style.display = 'block';
+//   overlay.style.display = 'flex';
+//   pb.style.width = '20%';
+
+//   const img = new Image();
+//   img.onload = () => {
+//     pb.style.width = '55%';
+//     let w = img.width, h = img.height;
+//     if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+//     const cv = document.createElement('canvas');
+//     cv.width = w; cv.height = h;
+//     cv.getContext('2d').drawImage(img, 0, 0, w, h);
+//     pb.style.width = '80%';
+//     const mime = fmt === 'png' ? 'image/png' : fmt === 'webp' ? 'image/webp' : 'image/jpeg';
+//     cv.toBlob(blob => {
+//       pb.style.width = '100%';
+//       setTimeout(() => { pbWrap.style.display = 'none'; pb.style.width = '0%'; }, 350);
+//       overlay.style.display = 'none';
+
+//       if (s.compUrl) URL.revokeObjectURL(s.compUrl);
+//       s.compUrl = URL.createObjectURL(blob);
+//       s.compBlob = blob;
+//       s.fmt = fmt;
+
+//       card.querySelector('.comp-img').src = s.compUrl;
+//       card.querySelector('.comp-size-val').textContent = fmtSize(blob.size);
+//       card.querySelector('.comp-dim').textContent = w + ' × ' + h;
+
+//       const pct = s.origSize > 0 ? Math.round((1 - blob.size / s.origSize) * 100) : 0;
+//       const fill = card.querySelector('.savings-fill');
+//       const label = card.querySelector('.savings-label');
+//       const absPct = Math.abs(pct);
+//       const trackPct = Math.min(absPct, 100);
+
+//       if (pct >= 10) {
+//         fill.className = 'savings-fill';
+//         label.className = 'savings-label';
+//         label.textContent = '-' + pct + '%';
+//         fill.style.width = trackPct + '%';
+//       } else if (pct >= 0) {
+//         fill.className = 'savings-fill warn';
+//         label.className = 'savings-label warn';
+//         label.textContent = '-' + pct + '%';
+//         fill.style.width = Math.max(trackPct, 2) + '%';
+//       } else {
+//         fill.className = 'savings-fill bad';
+//         label.className = 'savings-label bad';
+//         label.textContent = '+' + absPct + '%';
+//         fill.style.width = Math.min(trackPct, 100) + '%';
+//       }
+
+//       const dl = card.querySelector('.btn-dl');
+//       dl.disabled = false;
+//       dl.onclick = () => {
+//         const a = document.createElement('a');
+//         a.download = s.origName.replace(/\.[^.]+$/, '') + '-compressed.' + s.fmt;
+//         a.href = s.compUrl;
+//         a.click();
+//       };
+
+//       updateStats();
+//     }, mime, fmt === 'png' ? undefined : quality);
+//   };
+//   img.src = s.origUrl;
+// }
+
 function compress(card) {
   const s = card.__s;
   const quality = parseInt(card.querySelector('.quality-slider').value) / 100;
@@ -43,12 +118,15 @@ function compress(card) {
     pb.style.width = '55%';
     let w = img.width, h = img.height;
     if (w > maxW) { h = Math.round(h * maxW / w); w = maxW; }
+    
     const cv = document.createElement('canvas');
     cv.width = w; cv.height = h;
-    cv.getContext('2d').drawImage(img, 0, 0, w, h);
+    const ctx = cv.getContext('2d');
+    ctx.drawImage(img, 0, 0, w, h);
     pb.style.width = '80%';
-    const mime = fmt === 'png' ? 'image/png' : fmt === 'webp' ? 'image/webp' : 'image/jpeg';
-    cv.toBlob(blob => {
+
+    // Scope helper function to access card UI elements and state variables seamlessly
+    function handleCompressionSuccess(blob, finalW, finalH) {
       pb.style.width = '100%';
       setTimeout(() => { pbWrap.style.display = 'none'; pb.style.width = '0%'; }, 350);
       overlay.style.display = 'none';
@@ -60,7 +138,7 @@ function compress(card) {
 
       card.querySelector('.comp-img').src = s.compUrl;
       card.querySelector('.comp-size-val').textContent = fmtSize(blob.size);
-      card.querySelector('.comp-dim').textContent = w + ' × ' + h;
+      card.querySelector('.comp-dim').textContent = finalW + ' × ' + finalH;
 
       const pct = s.origSize > 0 ? Math.round((1 - blob.size / s.origSize) * 100) : 0;
       const fill = card.querySelector('.savings-fill');
@@ -95,11 +173,38 @@ function compress(card) {
       };
 
       updateStats();
-    }, mime, fmt === 'png' ? undefined : quality);
+    }
+
+    // --- Dynamic Routing Router Engine ---
+    if (fmt === 'png') {
+      try {
+        // Extract raw pixel buffer from local canvas sandbox
+        const imgData = ctx.getImageData(0, 0, w, h);
+        
+        // Map user 1-100 quality slider to colors depth limit (2 to 256 colors max)
+        const sliderVal = parseInt(card.querySelector('.quality-slider').value);
+        const colorsCount = Math.max(2, Math.round((sliderVal / 100) * 254) + 2);
+
+        // Run client-side lossy quantize via UPNG.js library
+        const rgbaBuffer = imgData.data.buffer;
+        const encodedPng = UPNG.encode([rgbaBuffer], w, h, colorsCount);
+        
+        // Turn typed array bytes directly into standard browser file blob object
+        const blob = new Blob([encodedPng], { type: 'image/png' });
+        handleCompressionSuccess(blob, w, h);
+      } catch (err) {
+        console.error("UPNG execution failure. Reverting to default lossless engine:", err);
+        // Fallback gracefully to vanilla browser lossless mechanism if initialization drops
+        cv.toBlob(blob => handleCompressionSuccess(blob, w, h), 'image/png');
+      }
+    } else {
+      // Clean lossy compression standard pipelines for modern WebP or legacy JPEG
+      const mime = fmt === 'webp' ? 'image/webp' : 'image/jpeg';
+      cv.toBlob(blob => handleCompressionSuccess(blob, w, h), mime, quality);
+    }
   };
   img.src = s.origUrl;
 }
-
 function addFile(file) {
   if (!file.type.startsWith('image/')) return;
 
@@ -107,12 +212,23 @@ function addFile(file) {
   wrapper.innerHTML = tpl.innerHTML;
   const card = wrapper.firstElementChild;
 
+  let detectedFmt = 'jpeg';
+  if (file.type === 'image/png') detectedFmt = 'png';
+  if (file.type === 'image/webp') detectedFmt = 'webp';
+
   card.__s = {
     origName: file.name,
     origSize: file.size,
     origUrl: URL.createObjectURL(file),
-    compUrl: null, compBlob: null, fmt: 'jpeg'
+    compUrl: null, 
+    compBlob: null, 
+    fmt: detectedFmt // Uses the uploaded file's format instead of forcing jpeg
   };
+
+  // Update the UI pills so the correct format button is lit up active
+  card.querySelectorAll('.fmt-pill').forEach(b => b.classList.remove('active'));
+  const activePill = card.querySelector(`.fmt-pill[data-fmt="${detectedFmt}"]`);
+  if (activePill) activePill.classList.add('active');
 
   card.querySelector('.card-fname').textContent = file.name;
   card.querySelector('.orig-img').src = card.__s.origUrl;
@@ -143,6 +259,8 @@ function addFile(file) {
   card.querySelector('.quality-slider').oninput = e => {
     card.querySelector('.quality-val').textContent = e.target.value + '%';
   };
+  card.querySelector('.quality-slider').onchange = () => compress(card);
+
   card.querySelector('.resize-slider').oninput = e => {
     card.querySelector('.resize-val').textContent = e.target.value + 'px';
   };
