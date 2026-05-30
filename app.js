@@ -534,6 +534,7 @@ function addFile(file) {
     card.querySelector('.resize-val').textContent = e.target.value + 'px';
   };
   card.querySelector('.btn-recompress').onclick = () => compress(card);
+  card.querySelector('.resize-slider').onchange = () => compress(card);
 
   cards.push(card);
   queue.appendChild(wrapper);
